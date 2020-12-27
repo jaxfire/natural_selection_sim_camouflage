@@ -23,7 +23,7 @@ class MyApp extends StatelessWidget {
 }
 
 class MainPage extends StatefulWidget {
-  final MyBloc myBloc = MyBloc(100);
+  final MyBloc myBloc = MyBloc();
 
   @override
   _MainPageState createState() => _MainPageState();
@@ -72,36 +72,33 @@ class _MainPageState extends State<MainPage> {
                           ),
                         ),
                       ),
-                      Align(
-                        alignment: Alignment.bottomRight,
-                        child: Padding(
-                          padding: const EdgeInsets.all(20.0),
-                          child: FloatingActionButton(
-                            child: Icon(Icons.refresh),
-                            onPressed: () {
-                              widget.myBloc.nextGeneration();
-                            },
-                          ),
-                        ),
-                      ),
+                      StreamBuilder<String>(
+                          stream: widget.myBloc.colourDiffStream,
+                          builder: (context, snapshot) {
+                            String text = '';
+                            if (snapshot.hasData) {
+                              text = snapshot.data;
+                            }
+                            return Align(
+                              alignment: Alignment.bottomCenter,
+                              child: Padding(
+                                padding: EdgeInsets.all(10.0),
+                                child: Text(
+                                  text,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20.0,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
                     ],
                   );
                 } else {
                   return Stack(children: [
                     Center(
                       child: Text('No Data'),
-                    ),
-                    Align(
-                      alignment: Alignment.bottomRight,
-                      child: Padding(
-                        padding: const EdgeInsets.all(20.0),
-                        child: FloatingActionButton(
-                          child: Icon(Icons.skip_next),
-                          onPressed: () {
-                            widget.myBloc.nextGeneration();
-                          },
-                        ),
-                      ),
                     ),
                   ]);
                 }

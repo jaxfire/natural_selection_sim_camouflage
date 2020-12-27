@@ -15,31 +15,38 @@ class MyBloc implements Bloc {
   Color background1 = Colors.black;
   Color background2 = Colors.white;
   double lerpValue = 0.0;
-  double lerpStep = 0.1;
+  double lerpStep = 0.0025;
   Color currentBackgroundColor = Colors.black;
+  int timeStepMillis = 150;
 
   double predatorPercentCull = 0.25;
   double randomPercentCull = 0.25;
 
-  MyBloc(int numOfCreatures) {
-    _numOfCreatures = numOfCreatures;
+  MyBloc() {
+    _numOfCreatures = 200;
 
     for (int i = 0; i < _numOfCreatures; i++) {
+      int brightness = Random().nextInt(255);
       creatures.add(
         Creature(
-          colour: Color(
-            Random().nextInt(0xffffffff),
-          ),
+          colour: Color.fromARGB(255, brightness, brightness, brightness),
         ),
       );
     }
+
+    Timer.periodic(Duration(milliseconds: timeStepMillis), (timer) {
+      nextGeneration();
+    });
   }
+
   final _creatureController = StreamController<List<Creature>>();
   final _backgroundController = StreamController<Color>();
+  final _colourDiffController = StreamController<String>();
 
   // OUTPUT
   Stream<List<Creature>> get creatureStream => _creatureController.stream;
   Stream<Color> get backgroundStream => _backgroundController.stream;
+  Stream<String> get colourDiffStream => _colourDiffController.stream;
 
   // INPUT
   void nextGeneration() {
@@ -48,8 +55,6 @@ class MyBloc implements Bloc {
     creatures.forEach((it) {
       calcFitnessScore(it);
     });
-
-    _creatureController.sink.add(creatures);
 
     // Culling
     // Worst 25% Eaten
@@ -61,20 +66,23 @@ class MyBloc implements Bloc {
     // Mating
     // Mating is random until population size is back to 100
     // Survivors mix colours 50/50
+    mate();
+
+    creatures.shuffle();
+    _creatureController.sink.add(creatures);
 
     // Set the next background colour
     currentBackgroundColor = generateNextBackgroundColour();
     _backgroundController.sink.add(currentBackgroundColor);
+
+    _colourDiffController.sink.add(
+        'Avg. Colour Diff: ${(averageBrightness() - currentBackgroundColor.red).abs()}');
   }
 
   void calcFitnessScore(Creature it) {
-    int redDiff = (it.colour.red - currentBackgroundColor.red).abs();
-    int greenDiff = (it.colour.green - currentBackgroundColor.green).abs();
-    int blueDiff = (it.colour.blue - currentBackgroundColor.blue).abs();
+    int brightnessDiff = (it.colour.red - currentBackgroundColor.red).abs();
 
-    double avgDiff = (redDiff + greenDiff + blueDiff) / 3.0;
-
-    it.fitnessScore = FitnessScore(score: avgDiff);
+    it.fitnessScore = FitnessScore(score: brightnessDiff);
   }
 
   @override
@@ -100,16 +108,64 @@ class MyBloc implements Bloc {
 
   void randomCull() {
     int numToBeCulled = (_numOfCreatures * randomPercentCull).toInt();
-    print(numToBeCulled);
     int numCulled = 0;
     while (numCulled < numToBeCulled) {
       creatures.remove(Random().nextInt(creatures.length));
       numCulled++;
     }
   }
+
+  void mate() {
+    int requiredOffSpring = _numOfCreatures - creatures.length;
+    for (int i = 0; i < requiredOffSpring; i++) {
+      Creature mateA = creatures[Random().nextInt(creatures.length)];
+      Creature mateB = creatures[Random().nextInt(creatures.length)];
+      Creature offspring = reproduce(mateA, mateB);
+      creatures.add(offspring);
+    }
+  }
+
+  Creature reproduce(Creature mateA, Creature mateB) {
+    Color colour =
+        Color.lerp(mateA.colour, mateB.colour, Random().nextDouble());
+
+    // Random brightness mutation
+    if (Random().nextDouble() > 0.9) {
+      int adjustmentAmount = Random().nextInt(25);
+      if (Random().nextDouble() > 0.5) {
+        adjustmentAmount *= -1;
+      }
+      if (colour.red + adjustmentAmount > 255 ||
+          colour.red - adjustmentAmount < 0) {
+        adjustmentAmount *= -1;
+      }
+      colour = colour.withRed(colour.red + adjustmentAmount);
+      colour = colour.withGreen(colour.green + adjustmentAmount);
+      colour = colour.withBlue(colour.blue + adjustmentAmount);
+    }
+
+    return Creature(colour: colour);
+  }
+
+  int averageBrightness() {
+    int redTotal = 0;
+    int greenTotal = 0;
+    int blueTotal = 0;
+
+    creatures.forEach((it) {
+      redTotal += it.colour.red;
+      greenTotal += it.colour.green;
+      blueTotal += it.colour.blue;
+    });
+
+    return (redTotal ~/ creatures.length +
+            greenTotal ~/ creatures.length +
+            blueTotal ~/ creatures.length) ~/
+        3;
+  }
 }
 
 class FitnessScore {
-  double score;
+  int score;
   FitnessScore({this.score});
 }
